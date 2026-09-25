@@ -9,10 +9,8 @@
 const { PublicKey } = require("@solana/web3.js");
 const { loadConfig } = require("./config");
 const { connect, assertRpc } = require("./websocket");
-const { parseTrades, fromRpc } = require("./parser");
+const { walletHistory } = require("./history");
 const { solStr, tokenStr, short } = require("./format");
-
-const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
 
 async function main() {
   const [address, countArg] = process.argv.slice(2);
@@ -26,7 +24,7 @@ async function main() {
   await assertRpc(connection);
 
   console.log(`🔎 Últimas ${limit} transacciones de ${wallet}\n`);
-  const signatures = await connection.getSignaturesForAddress(new PublicKey(wallet), { limit });
+  const history = await walletHistory(connection, wallet, limit);
   const counts = { "pump.fun": 0, PumpSwap: 0, "otro DEX": 0, cambios: 0, transferencias: 0, otras: 0 };
   const LABEL = {
     BUY: "🟢 COMPRA ",
@@ -36,18 +34,13 @@ async function main() {
     TRANSFER_IN: "📥 RECIBE ",
   };
 
-  for (const { signature, blockTime, err } of signatures) {
+  for (const { blockTime, err, trades } of history) {
     const when = blockTime ? new Date(blockTime * 1000).toLocaleString("es") : "?";
     if (err) {
       console.log(`${when}  ✖ fallida`);
       counts.otras++;
       continue;
     }
-    const tx = await connection.getTransaction(signature, {
-      commitment: "confirmed",
-      maxSupportedTransactionVersion: 1,
-    });
-    const trades = tx ? parseTrades(fromRpc(signature, tx), new Set([wallet])) : [];
     if (trades.length === 0) {
       console.log(`${when}  ·  sin movimiento de tokens (envío de SOL u otra)`);
       counts.otras++;
@@ -65,7 +58,6 @@ async function main() {
         console.log(`${when}  ${LABEL[t.side]} ${tokenStr(t.tokenAmount, t.decimals)} de ${short(t.mint)} (sin pago: no es compra ni venta)`);
       }
     }
-    await sleep(150); // no saturar el plan gratuito del RPC
   }
 
   console.log("\n📊 Resumen:");

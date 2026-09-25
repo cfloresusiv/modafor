@@ -91,7 +91,24 @@ Busca wallets activas en pump.fun en exploradores como
 [gmgn.ai](https://gmgn.ai) o [solscan.io](https://solscan.io) y ponlas en
 `WATCH_LIST` separadas por comas.
 
-Antes de seguir una wallet, revisa qué hace:
+Para comparar varias candidatas y quedarte con las mejores:
+
+```bash
+npm run evaluar -- <WALLET_1> <WALLET_2> <WALLET_3>
+```
+
+(sin wallets, evalúa las de `WATCH_LIST`). Las ordena según datos reales:
+compras en la curva de pump.fun, ganancia **realizada** (lo que vendió con
+ganancia, no lo que "tiene"), % de acierto, variedad de tokens y actividad
+reciente. Marca con ✅ las que cumplen todo.
+
+Buenos lugares para encontrar candidatas: los rankings de
+[kolscan.io](https://kolscan.io), el panel "smart money" de
+[dexscreener.com](https://dexscreener.com) o [gmgn.ai](https://gmgn.ai).
+Ordénalos por ganancia **realizada** de 7 y 30 días y evita las wallets más
+famosas: son las más copiadas.
+
+Para ver en detalle qué hace una sola wallet:
 
 ```bash
 npm run revisar -- <WALLET> 30
@@ -178,6 +195,8 @@ Eso también es parte de la lección.
 | `src/liveTrader.js` | Modo `real` (Metis + simulación previa) |
 | `src/check.js` | Verificación sin gastar |
 | `src/inspect.js` | `npm run revisar`: analiza las últimas operaciones de una wallet |
+| `src/evaluate.js` | `npm run evaluar`: ranking de wallets candidatas |
+| `src/history.js` | Descarga el historial de una wallet (usado por revisar y evaluar) |
 | `data/` | Estado e historial (se crea solo, no se sube a git) |
 
 ## Tests
