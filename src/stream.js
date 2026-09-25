@@ -1,10 +1,11 @@
 /**
- * Recibe en tiempo real las transacciones de pump.fun donde participan las
+ * FUENTE=grpc — recibe en tiempo real las transacciones de pump.fun donde participan las
  * wallets seguidas, usando Yellowstone gRPC (Geyser) de QuickNode.
  */
 const Client = require("@triton-one/yellowstone-grpc").default;
 const { CommitmentLevel } = require("@triton-one/yellowstone-grpc");
 const { PUMP_FUN_PROGRAM_ID } = require("./config");
+const { fromYellowstone } = require("./parser");
 
 const PING_INTERVAL_MS = 15_000;
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
@@ -55,7 +56,7 @@ async function streamTransactions(config, onTransaction) {
       await new Promise((resolve, reject) => {
         stream.on("data", (update) => {
           const tx = update.transaction?.transaction;
-          if (tx) onTransaction(tx);
+          if (tx) onTransaction(fromYellowstone(tx));
         });
         stream.on("error", reject);
         stream.on("end", resolve);

@@ -9,6 +9,7 @@
 const { loadConfig } = require("./config");
 const { parseTrades } = require("./parser");
 const { streamTransactions } = require("./stream");
+const { streamViaWebsocket } = require("./websocket");
 const { Store } = require("./store");
 const { PaperTrader } = require("./paperTrader");
 const { LiveTrader } = require("./liveTrader");
@@ -30,7 +31,7 @@ async function main() {
     : null;
 
   console.log("🤖 Copy trader de pump.fun");
-  console.log(`   Modo: ${MODE_LABEL[config.mode]}`);
+  console.log(`   Modo: ${MODE_LABEL[config.mode]} · Fuente: ${config.source}`);
   if (config.mode === "real") {
     console.log(`   Wallet del bot: ${trader.publicKey}`);
     console.log(`   Saldo: ${solStr(await trader.solBalance())}`);
@@ -80,7 +81,8 @@ async function main() {
   process.on("SIGINT", shutdown);
   process.on("SIGTERM", shutdown);
 
-  await streamTransactions(config, onTransaction);
+  const stream = config.source === "grpc" ? streamTransactions : streamViaWebsocket;
+  await stream(config, onTransaction);
 }
 
 main().catch((err) => {

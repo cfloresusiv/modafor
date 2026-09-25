@@ -17,7 +17,7 @@ sin arriesgar dinero.
 Wallet seguida opera en pump.fun
         │
         ▼
-Yellowstone gRPC (QuickNode) ──► el bot recibe la transacción en ~ms
+WebSocket (gratis) o gRPC (de pago) ──► el bot recibe la transacción
         │
         ▼
 parser.js: ¿subió o bajó el saldo de un token de esa wallet?
@@ -33,9 +33,19 @@ parser.js: ¿subió o bajó el saldo de un token de esa wallet?
 
 | Modo | Qué hace | Qué necesitas | Riesgo |
 |---|---|---|---|
-| `observar` | Muestra en vivo lo que hacen las wallets | Yellowstone | Ninguno |
-| `simular` | Copia con **dinero ficticio** y calcula ganancias/pérdidas | Yellowstone | Ninguno |
-| `real` | Compra y vende de verdad | Yellowstone + RPC + Metis + wallet con SOL | Pierdes lo que inviertes |
+| `observar` | Muestra en vivo lo que hacen las wallets | Endpoint de QuickNode | Ninguno |
+| `simular` | Copia con **dinero ficticio** y calcula ganancias/pérdidas | Endpoint de QuickNode | Ninguno |
+| `real` | Compra y vende de verdad | Endpoint + Metis + wallet con SOL | Pierdes lo que inviertes |
+
+### Fuente de datos (`FUENTE`)
+
+| `FUENTE` | Costo | Velocidad | Qué necesitas |
+|---|---|---|---|
+| `websocket` (por defecto) | Gratis, incluido en el endpoint | ~1–2 s después de la operación | `SOLANA_RPC` |
+| `grpc` | Add-on de pago "Solana gRPC" | Milisegundos | `YELLOWSTONE_ENDPOINT` y `YELLOWSTONE_TOKEN` |
+
+Buen punto para explicar: los bots profesionales pagan por velocidad, y por
+eso entran antes que tú.
 
 ## Protecciones de seguridad
 
@@ -69,11 +79,11 @@ cp .env.example .env
 
 1. Crea una cuenta en [quicknode.com](https://www.quicknode.com) y un endpoint
    de **Solana Mainnet**.
-2. En *Add-ons*, activa **Yellowstone gRPC** (el modo `observar` y el modo
-   `simular` solo necesitan esto). Revisa el precio: es un add-on de pago.
-3. Solo para el modo `real`: activa también **Metis – Jupiter Swap API**.
-4. Copia en `.env` los valores de `YELLOWSTONE_ENDPOINT`, `YELLOWSTONE_TOKEN`,
-   `SOLANA_RPC` y `METIS_ENDPOINT`.
+2. En la pestaña *Overview* del endpoint copia la **HTTP Provider** URL en
+   `SOLANA_RPC`. Con eso ya funcionan `observar` y `simular` (con `FUENTE=websocket`).
+3. Solo para el modo `real`: en *Add-ons* instala **Metis Jupiter Swap API**
+   (tiene plan gratuito) y copia su URL en `METIS_ENDPOINT`.
+4. Opcional y de pago: el add-on **Solana gRPC** para `FUENTE=grpc`.
 
 ### Elegir wallets para seguir
 
@@ -150,7 +160,8 @@ Eso también es parte de la lección.
 | Archivo | Qué hace |
 |---|---|
 | `src/index.js` | Programa principal |
-| `src/stream.js` | Conexión a Yellowstone gRPC con reconexión automática |
+| `src/websocket.js` | Fuente gratuita: suscripción de logs por WebSocket |
+| `src/stream.js` | Fuente de pago: Yellowstone gRPC con reconexión automática |
 | `src/parser.js` | Detecta compras y ventas por cambios de saldo |
 | `src/guard.js` | Límites de seguridad |
 | `src/paperTrader.js` | Modo `simular` |
@@ -175,7 +186,8 @@ npm test
 - Corrige errores del ejemplo original: la dependencia `node-fetch` no estaba
   declarada y el manejo de errores usaba una variable inexistente.
 - Acepta la clave privada en el formato que exporta Phantom (base58).
-- Reconexión automática si se corta la conexión con Yellowstone.
+- Reconexión automática si se corta la conexión.
+- Alternativa gratuita por WebSocket además de Yellowstone gRPC.
 
 ---
 

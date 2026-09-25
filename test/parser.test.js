@@ -1,14 +1,16 @@
 const test = require("node:test");
 const assert = require("node:assert");
 const bs58 = require("bs58").default;
-const { Keypair } = require("@solana/web3.js");
-const { parseTrades } = require("../src/parser");
+const { Keypair, PublicKey, TransactionMessage, AddressLookupTableAccount, SystemProgram } = require("@solana/web3.js");
+const { parseTrades: parseNormalized, fromYellowstone, fromRpc } = require("../src/parser");
+const { wsUrl } = require("../src/websocket");
 const { WSOL_MINT } = require("../src/config");
 
 const whale = Keypair.generate().publicKey.toBase58();
 const other = Keypair.generate().publicKey.toBase58();
 const mint = Keypair.generate().publicKey.toBase58();
 const watched = new Set([whale]);
+const parseTrades = (tx, w) => parseNormalized(fromYellowstone(tx), w);
 
 const bal = (accountIndex, owner, m, amount, decimals = 6) => ({
   accountIndex, owner, mint: m, programId: "", uiTokenAmount: { amount: String(amount), decimals },
@@ -106,4 +108,41 @@ test("ignora movimientos de wallets no seguidas", () => {
     keys: [other], pre: [2_000], post: [1_000], postTokens: [bal(0, other, mint, 10)],
   });
   assert.deepEqual(parseTrades(tx, watched), []);
+});
+
+test("formato RPC (WebSocket): incluye cuentas de lookup tables", () => {
+  const payer = Keypair.generate().publicKey;
+  const lookupTable = new AddressLookupTableAccount({
+    key: Keypair.generate().publicKey,
+    state: { deactivationSlot: 2n ** 64n - 1n, lastExtendedSlot: 0, lastExtendedSlotStartIndex: 0, addresses: [new PublicKey(whale)] },
+  });
+  const message = new TransactionMessage({
+    payerKey: payer,
+    recentBlockhash: Keypair.generate().publicKey.toBase58(),
+    instructions: [SystemProgram.transfer({ fromPubkey: payer, toPubkey: new PublicKey(whale), lamports: 1 })],
+  }).compileToV0Message([lookupTable]);
+  // payer y System Program quedan como claves estáticas; la ballena llega por la lookup table.
+  const rpcTx = {
+    transaction: { message },
+    meta: {
+      err: null,
+      preBalances: [5_000, 1, 2_000],
+      postBalances: [5_000, 1, 1_000],
+      preTokenBalances: [],
+      postTokenBalances: [bal(3, whale, mint, 42)],
+      loadedAddresses: { writable: [new PublicKey(whale)], readonly: [] },
+    },
+  };
+  const normalized = fromRpc("firma123", rpcTx);
+  assert.equal(normalized.accountKeys[2], whale);
+  const [t] = parseNormalized(normalized, watched);
+  assert.equal(t.signature, "firma123");
+  assert.equal(t.side, "BUY");
+  assert.equal(t.lamports, 1_000n);
+  assert.equal(t.tokenAmount, 42n);
+});
+
+test("wsUrl convierte la URL http del RPC en ws", () => {
+  assert.equal(wsUrl("https://x.quiknode.pro/abc/"), "wss://x.quiknode.pro/abc/");
+  assert.equal(wsUrl("http://localhost:8899"), "ws://localhost:8899");
 });

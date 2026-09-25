@@ -12,17 +12,48 @@ const { WSOL_MINT } = require("./config");
 
 const toBase58 = (bytes) => bs58.encode(Buffer.from(bytes));
 
-function accountKeysOf(tx) {
-  const message = tx.transaction?.message;
-  const meta = tx.meta;
-  return [
-    ...(message?.accountKeys || []),
-    ...(meta?.loadedWritableAddresses || []),
-    ...(meta?.loadedReadonlyAddresses || []),
-  ].map(toBase58);
+/**
+ * Formato común que usa parseTrades, venga la transacción de Yellowstone
+ * (gRPC) o del RPC normal (WebSocket):
+ *   { signature, accountKeys: string[], err, preBalances, postBalances,
+ *     preTokenBalances, postTokenBalances }
+ */
+function fromYellowstone(tx) {
+  const message = tx?.transaction?.message;
+  const meta = tx?.meta;
+  if (!message || !meta) return null;
+  return {
+    signature: toBase58(tx.signature),
+    accountKeys: [
+      ...(message.accountKeys || []),
+      ...(meta.loadedWritableAddresses || []),
+      ...(meta.loadedReadonlyAddresses || []),
+    ].map(toBase58),
+    err: meta.err,
+    preBalances: meta.preBalances,
+    postBalances: meta.postBalances,
+    preTokenBalances: meta.preTokenBalances,
+    postTokenBalances: meta.postTokenBalances,
+  };
 }
 
-function tokenDeltasByMint(meta, owner) {
+/** Respuesta de connection.getTransaction(sig, { maxSupportedTransactionVersion: 0 }). */
+function fromRpc(signature, tx) {
+  const meta = tx?.meta;
+  if (!tx?.transaction?.message || !meta) return null;
+  const keys = tx.transaction.message.getAccountKeys({ accountKeysFromLookups: meta.loadedAddresses });
+  return {
+    signature,
+    accountKeys: keys.keySegments().flat().map((k) => k.toBase58()),
+    err: meta.err,
+    preBalances: meta.preBalances,
+    postBalances: meta.postBalances,
+    preTokenBalances: meta.preTokenBalances,
+    postTokenBalances: meta.postTokenBalances,
+  };
+}
+
+function tokenDeltasByMint(tx, owner) {
   const deltas = new Map();
   const add = (balances, sign) => {
     for (const b of balances || []) {
@@ -33,31 +64,27 @@ function tokenDeltasByMint(meta, owner) {
       deltas.set(b.mint, current);
     }
   };
-  add(meta.preTokenBalances, -1n);
-  add(meta.postTokenBalances, 1n);
+  add(tx.preTokenBalances, -1n);
+  add(tx.postTokenBalances, 1n);
   return deltas;
 }
 
 /**
- * @param {object} tx  SubscribeUpdateTransactionInfo (data.transaction.transaction)
+ * @param {object} tx  transacción en el formato común (fromYellowstone / fromRpc)
  * @param {Set<string>} watched  wallets seguidas
  * @returns {Array<{signature, trader, side, mint, tokenAmount, decimals, lamports}>}
  *   tokenAmount y lamports son BigInt positivos (cantidad movida).
  */
 function parseTrades(tx, watched) {
-  const meta = tx?.meta;
-  if (!tx?.transaction?.message || !meta || meta.err) return [];
-
-  const signature = toBase58(tx.signature);
-  const keys = accountKeysOf(tx);
+  if (!tx || tx.err) return [];
   const trades = [];
 
-  keys.forEach((key, index) => {
+  tx.accountKeys.forEach((key, index) => {
     if (!watched.has(key)) return;
 
-    const deltas = tokenDeltasByMint(meta, key);
+    const deltas = tokenDeltasByMint(tx, key);
     // Si un router envolvió SOL en WSOL, cuenta ese movimiento como SOL.
-    let solDelta = BigInt(meta.postBalances[index] ?? 0) - BigInt(meta.preBalances[index] ?? 0);
+    let solDelta = BigInt(tx.postBalances[index] ?? 0) - BigInt(tx.preBalances[index] ?? 0);
     if (deltas.has(WSOL_MINT)) {
       solDelta += deltas.get(WSOL_MINT).delta;
       deltas.delete(WSOL_MINT);
@@ -70,7 +97,7 @@ function parseTrades(tx, watched) {
       // swap: puede ser un airdrop o una transferencia. Se ignora.
       if ((side === "BUY" && solDelta >= 0n) || (side === "SELL" && solDelta <= 0n)) continue;
       trades.push({
-        signature,
+        signature: tx.signature,
         trader: key,
         side,
         mint,
@@ -84,4 +111,4 @@ function parseTrades(tx, watched) {
   return trades;
 }
 
-module.exports = { parseTrades };
+module.exports = { parseTrades, fromYellowstone, fromRpc };

@@ -2,6 +2,7 @@ require("dotenv").config();
 const { PublicKey, LAMPORTS_PER_SOL } = require("@solana/web3.js");
 
 const MODES = ["observar", "simular", "real"];
+const SOURCES = ["websocket", "grpc"];
 
 const PUMP_FUN_PROGRAM_ID = "6EF8rrecthR5Dkzon8Nwu78hRvfCKubJ14M5uBEwF6P";
 const WSOL_MINT = "So11111111111111111111111111111111111111112";
@@ -30,6 +31,11 @@ function loadConfig() {
     throw new Error(`MODE debe ser uno de: ${MODES.join(", ")}`);
   }
 
+  const source = (process.env.FUENTE || "websocket").trim().toLowerCase();
+  if (!SOURCES.includes(source)) {
+    throw new Error(`FUENTE debe ser uno de: ${SOURCES.join(", ")}`);
+  }
+
   const watchList = required("WATCH_LIST")
     .split(",")
     .map((s) => s.trim())
@@ -45,9 +51,8 @@ function loadConfig() {
 
   const config = {
     mode,
+    source,
     watchList,
-    yellowstoneEndpoint: required("YELLOWSTONE_ENDPOINT"),
-    yellowstoneToken: required("YELLOWSTONE_TOKEN"),
 
     buyLamports: sol(number("BUY_AMOUNT_SOL", 0.005)),
     minWhaleLamports: sol(number("MIN_WHALE_SOL", 0.1)),
@@ -64,8 +69,15 @@ function loadConfig() {
     dataDir: process.env.DATA_DIR || "data",
   };
 
-  if (mode === "real") {
+  if (source === "grpc") {
+    config.yellowstoneEndpoint = required("YELLOWSTONE_ENDPOINT");
+    config.yellowstoneToken = required("YELLOWSTONE_TOKEN");
+  }
+  if (source === "websocket" || mode === "real") {
     config.solanaRpc = required("SOLANA_RPC");
+    config.solanaWss = process.env.SOLANA_WSS?.trim() || undefined;
+  }
+  if (mode === "real") {
     config.metisEndpoint = required("METIS_ENDPOINT").replace(/\/+$/, "");
     config.secretKey = required("SECRET_KEY");
   }
