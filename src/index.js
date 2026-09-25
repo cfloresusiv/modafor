@@ -49,12 +49,32 @@ async function main() {
   const seen = new Set();
 
   const handleTrade = async (trade) => {
-    const icon = trade.side === "BUY" ? "🟢 COMPRA" : "🔴 VENTA";
-    console.log(`${icon}  ${short(trade.trader)} ${trade.side === "BUY" ? "compró" : "vendió"} ${tokenStr(trade.tokenAmount, trade.decimals)} de ${trade.mint}`);
-    console.log(`   por ${solStr(trade.lamports)} en ${trade.venue} · https://solscan.io/tx/${trade.signature}`);
+    const who = short(trade.trader);
+    const amount = tokenStr(trade.tokenAmount, trade.decimals);
+    const link = `https://solscan.io/tx/${trade.signature}`;
+    switch (trade.side) {
+      case "BUY":
+      case "SELL":
+        console.log(`${trade.side === "BUY" ? "🟢 COMPRA" : "🔴 VENTA"}  ${who} ${trade.side === "BUY" ? "compró" : "vendió"} ${amount} de ${trade.mint}`);
+        console.log(`   por ${solStr(trade.lamports)} en ${trade.venue} · ${link}`);
+        break;
+      case "SWAP":
+        console.log(`🔁 CAMBIO  ${who} cambió ${amount} de ${short(trade.mint)} por ${tokenStr(trade.toAmount, trade.toDecimals)} de ${short(trade.toMint)}`);
+        console.log(`   (es una venta de ${short(trade.mint)}: realiza ganancia o pérdida) en ${trade.venue} · ${link}`);
+        break;
+      case "TRANSFER_OUT":
+        console.log(`📤 ENVÍO  ${who} envió ${amount} de ${short(trade.mint)} a otra wallet (no es venta, pero puede vender desde ahí) · ${link}`);
+        break;
+      case "TRANSFER_IN":
+        console.log(`📥 RECIBE ${who} recibió ${amount} de ${short(trade.mint)} sin pagarlo (transferencia o airdrop) · ${link}`);
+        break;
+    }
     if (!trader) return;
     if (trade.side === "BUY") await trader.onBuy(trade, buyBlockedReason(trade, config, store));
-    else await trader.onSell(trade);
+    else if (trade.side === "SELL") await trader.onSell(trade);
+    // Si la ballena se deshace de un token que copiamos (lo cambia por otro o
+    // lo saca de la wallet), lo tratamos como señal de salida.
+    else if (trade.side === "SWAP" || trade.side === "TRANSFER_OUT") await trader.onExit(trade);
   };
 
   const watched = new Set(config.watchList);
@@ -64,12 +84,12 @@ async function main() {
     if (tx && trades.length === 0 && !seen.has(tx.signature)) {
       seen.add(tx.signature);
       const who = tx.accountKeys.filter((k) => watched.has(k)).map(short).join(", ");
-      const what = tx.err ? "transacción fallida" : "movimiento que no es compra/venta (transferencia, comisión, etc.)";
+      const what = tx.err ? "transacción fallida" : "movimiento sin tokens (envío de SOL, comisión, etc.)";
       console.log(`·  ${who}: ${what} · https://solscan.io/tx/${tx.signature}`);
       return;
     }
     for (const trade of trades) {
-      const key = `${trade.signature}:${trade.trader}:${trade.mint}`;
+      const key = `${trade.signature}:${trade.trader}:${trade.mint}:${trade.side}`;
       if (seen.has(key)) continue; // la reconexión puede repetir transacciones
       seen.add(key);
       if (seen.size > 10_000) seen.delete(seen.values().next().value);

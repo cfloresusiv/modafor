@@ -68,6 +68,14 @@ class PaperTrader {
     console.log(`   🧪 Venta simulada de ${short(trade.mint)}: recibes ${solStr(proceeds)} → ${icon} ${pnl >= 0n ? "+" : ""}${solStr(pnl)}`);
   }
 
+  /** La ballena cambió o envió el token: en la simulación no hay precio de venta. */
+  async onExit(trade) {
+    if (!this.store.positions[trade.mint]) return;
+    this.store.log({ event: "SIM_EXIT_SIN_PRECIO", mint: trade.mint, side: trade.side, copiedTx: trade.signature });
+    console.log(`   ⚠️  Tienes ${short(trade.mint)} en la simulación, pero la ballena salió sin venderlo por SOL.`);
+    console.log("      No hay precio para simular la venta: la posición queda abierta. En modo real se vendería.");
+  }
+
   summary() {
     const s = this.store.state;
     return [

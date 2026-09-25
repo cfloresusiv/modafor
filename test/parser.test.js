@@ -80,13 +80,13 @@ test("encuentra a la wallet en direcciones cargadas por lookup table", () => {
   const tx = makeTx({
     keys: [other],
     loaded: [whale],
-    pre: [0, 2_000],
-    post: [0, 1_000],
+    pre: [0, 20_000_000],
+    post: [0, 10_000_000],
     postTokens: [bal(1, whale, mint, 10)],
   });
   const [t] = parseTrades(tx, watched);
   assert.equal(t.trader, whale);
-  assert.equal(t.lamports, 1_000n);
+  assert.equal(t.lamports, 10_000_000n);
 });
 
 test("ignora transacciones fallidas", () => {
@@ -96,11 +96,38 @@ test("ignora transacciones fallidas", () => {
   assert.deepEqual(parseTrades(tx, watched), []);
 });
 
-test("ignora tokens recibidos sin pagar SOL (airdrop/transferencia)", () => {
+test("tokens recibidos sin pagar SOL son TRANSFER_IN, no compra", () => {
   const tx = makeTx({
-    keys: [whale], pre: [1_000], post: [1_000], postTokens: [bal(0, whale, mint, 10)],
+    keys: [whale], pre: [3_000_000], post: [960_000], postTokens: [bal(0, whale, mint, 10)], // solo paga ~0.002 de cuenta
   });
-  assert.deepEqual(parseTrades(tx, watched), []);
+  const [t] = parseTrades(tx, watched);
+  assert.equal(t.side, "TRANSFER_IN");
+});
+
+test("tokens enviados sin recibir SOL son TRANSFER_OUT, no venta", () => {
+  const tx = makeTx({
+    keys: [whale], pre: [1_000_000], post: [3_030_000], // recupera ~0.002 al cerrar la cuenta
+    preTokens: [bal(0, whale, mint, 10)], postTokens: [],
+  });
+  const [t] = parseTrades(tx, watched);
+  assert.equal(t.side, "TRANSFER_OUT");
+  assert.equal(t.tokenAmount, 10n);
+});
+
+test("cambiar un token por otro es SWAP (vende uno, compra otro)", () => {
+  const usdc = Keypair.generate().publicKey.toBase58();
+  const tx = makeTx({
+    keys: [whale], pre: [1_000_000_000], post: [999_995_000],
+    preTokens: [bal(0, whale, usdc, 5_000_000)],
+    postTokens: [bal(0, whale, usdc, 0), bal(0, whale, mint, 123)],
+  });
+  const trades = parseTrades(tx, watched);
+  assert.equal(trades.length, 1);
+  assert.equal(trades[0].side, "SWAP");
+  assert.equal(trades[0].mint, usdc);
+  assert.equal(trades[0].tokenAmount, 5_000_000n);
+  assert.equal(trades[0].toMint, mint);
+  assert.equal(trades[0].toAmount, 123n);
 });
 
 test("ignora movimientos de wallets no seguidas", () => {
@@ -126,8 +153,8 @@ test("formato RPC (WebSocket): incluye cuentas de lookup tables", () => {
     transaction: { message },
     meta: {
       err: null,
-      preBalances: [5_000, 1, 2_000],
-      postBalances: [5_000, 1, 1_000],
+      preBalances: [5_000, 1, 20_000_000],
+      postBalances: [5_000, 1, 10_000_000],
       preTokenBalances: [],
       postTokenBalances: [bal(3, whale, mint, 42)],
       loadedAddresses: { writable: [new PublicKey(whale)], readonly: [] },
@@ -138,7 +165,7 @@ test("formato RPC (WebSocket): incluye cuentas de lookup tables", () => {
   const [t] = parseNormalized(normalized, watched);
   assert.equal(t.signature, "firma123");
   assert.equal(t.side, "BUY");
-  assert.equal(t.lamports, 1_000n);
+  assert.equal(t.lamports, 10_000_000n);
   assert.equal(t.tokenAmount, 42n);
 });
 
@@ -174,7 +201,7 @@ test("formato RPC con transacción v1 (formato nuevo de Solana)", () => {
 });
 
 test("indica dónde ocurrió la operación", () => {
-  const base = { pre: [2_000, 0, 0], post: [1_000, 0, 0], postTokens: [bal(1, whale, mint, 10)] };
+  const base = { pre: [20_000_000, 0, 0], post: [10_000_000, 0, 0], postTokens: [bal(1, whale, mint, 10)] };
   const at = (program) => parseTrades(makeTx({ keys: [whale, other, program], ...base }), watched)[0].venue;
   assert.equal(at(PUMP_FUN_PROGRAM_ID), "pump.fun");
   assert.equal(at(PUMP_SWAP_PROGRAM_ID), "PumpSwap");

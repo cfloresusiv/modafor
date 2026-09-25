@@ -178,6 +178,13 @@ class LiveTrader {
     }
   }
 
+  /** La ballena cambió o envió el token: vender nuestra posición a precio de mercado. */
+  async onExit(trade) {
+    if (!this.store.positions[trade.mint]) return;
+    console.log(`   ↪️  La ballena salió de ${short(trade.mint)} sin venderlo por SOL; vendemos nuestra posición.`);
+    await this.onSell(trade);
+  }
+
   summary() {
     const s = this.store.state;
     return [

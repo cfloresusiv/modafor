@@ -27,7 +27,14 @@ async function main() {
 
   console.log(`🔎 Últimas ${limit} transacciones de ${wallet}\n`);
   const signatures = await connection.getSignaturesForAddress(new PublicKey(wallet), { limit });
-  const counts = { "pump.fun": 0, PumpSwap: 0, "otro DEX": 0, otras: 0 };
+  const counts = { "pump.fun": 0, PumpSwap: 0, "otro DEX": 0, cambios: 0, transferencias: 0, otras: 0 };
+  const LABEL = {
+    BUY: "🟢 COMPRA ",
+    SELL: "🔴 VENTA  ",
+    SWAP: "🔁 CAMBIO ",
+    TRANSFER_OUT: "📤 ENVÍO  ",
+    TRANSFER_IN: "📥 RECIBE ",
+  };
 
   for (const { signature, blockTime, err } of signatures) {
     const when = blockTime ? new Date(blockTime * 1000).toLocaleString("es") : "?";
@@ -42,14 +49,21 @@ async function main() {
     });
     const trades = tx ? parseTrades(fromRpc(signature, tx), new Set([wallet])) : [];
     if (trades.length === 0) {
-      console.log(`${when}  ·  sin compra/venta (transferencia u otra)`);
+      console.log(`${when}  ·  sin movimiento de tokens (envío de SOL u otra)`);
       counts.otras++;
     }
     for (const t of trades) {
-      counts[t.venue]++;
-      const side = t.side === "BUY" ? "🟢 COMPRA" : "🔴 VENTA ";
-      const copy = t.venue === "pump.fun" ? "✅ copiable" : "⏭️  no copiable (graduado)";
-      console.log(`${when}  ${side} ${solStr(t.lamports).padStart(16)} en ${t.venue.padEnd(8)} ${copy}  token ${short(t.mint)}`);
+      if (t.side === "BUY" || t.side === "SELL") {
+        counts[t.venue]++;
+        const copy = t.venue === "pump.fun" ? "✅ copiable" : "⏭️  no copiable (graduado)";
+        console.log(`${when}  ${LABEL[t.side]} ${solStr(t.lamports).padStart(16)} en ${t.venue.padEnd(8)} ${copy}  token ${short(t.mint)}`);
+      } else if (t.side === "SWAP") {
+        counts.cambios++;
+        console.log(`${when}  ${LABEL.SWAP} ${tokenStr(t.tokenAmount, t.decimals)} de ${short(t.mint)} → ${tokenStr(t.toAmount, t.toDecimals)} de ${short(t.toMint)} (vende uno, compra otro)`);
+      } else {
+        counts.transferencias++;
+        console.log(`${when}  ${LABEL[t.side]} ${tokenStr(t.tokenAmount, t.decimals)} de ${short(t.mint)} (sin pago: no es compra ni venta)`);
+      }
     }
     await sleep(150); // no saturar el plan gratuito del RPC
   }
@@ -58,7 +72,9 @@ async function main() {
   console.log(`   En la curva de pump.fun (el bot puede copiar): ${counts["pump.fun"]}`);
   console.log(`   En PumpSwap (tokens graduados):               ${counts.PumpSwap}`);
   console.log(`   En otros exchanges:                           ${counts["otro DEX"]}`);
-  console.log(`   Otras (transferencias, fallidas…):            ${counts.otras}`);
+  console.log(`   Cambios token → token (vende uno, compra otro): ${counts.cambios}`);
+  console.log(`   Envíos/recepciones sin pago:                  ${counts.transferencias}`);
+  console.log(`   Otras (envío de SOL, fallidas…):              ${counts.otras}`);
   if (counts["pump.fun"] === 0) {
     console.log("\n⚠️  Esta wallet no operó en la curva de pump.fun en estas transacciones: el bot no tendría nada que copiar.");
   }

@@ -10,6 +10,10 @@
 const bs58 = require("bs58").default;
 const { WSOL_MINT, PUMP_FUN_PROGRAM_ID, PUMP_SWAP_PROGRAM_ID } = require("./config");
 
+// Movimientos de SOL menores a esto son comisiones o el depósito/devolución
+// (~0.002 SOL) por abrir o cerrar la cuenta de un token, no un pago.
+const DUST_LAMPORTS = 3_000_000n;
+
 const toBase58 = (bytes) => bs58.encode(Buffer.from(bytes));
 
 /**
@@ -80,6 +84,8 @@ function tokenDeltasByMint(tx, owner) {
  * @param {object} tx  transacción en el formato común (fromYellowstone / fromRpc)
  * @param {Set<string>} watched  wallets seguidas
  * @returns {Array<{signature, trader, side, mint, tokenAmount, decimals, lamports, venue}>}
+ *   side: BUY / SELL (contra SOL), SWAP (entrega `mint` a cambio de `toMint`),
+ *   TRANSFER_OUT / TRANSFER_IN (tokens enviados o recibidos sin pago).
  *   venue: "pump.fun" (curva, token nuevo), "PumpSwap" (token graduado) u "otro DEX".
  *   tokenAmount y lamports son BigInt positivos (cantidad movida).
  */
@@ -99,22 +105,28 @@ function parseTrades(tx, watched) {
       deltas.delete(WSOL_MINT);
     }
 
-    for (const [mint, { delta, decimals }] of deltas) {
-      if (delta === 0n) continue;
-      const side = delta > 0n ? "BUY" : "SELL";
-      // Una compra que no gasta SOL (o una venta que no lo recibe) no es un
-      // swap: puede ser un airdrop o una transferencia. Se ignora.
-      if ((side === "BUY" && solDelta >= 0n) || (side === "SELL" && solDelta <= 0n)) continue;
-      trades.push({
-        signature: tx.signature,
-        trader: key,
-        side,
-        mint,
-        tokenAmount: delta < 0n ? -delta : delta,
-        decimals,
-        lamports: solDelta < 0n ? -solDelta : solDelta,
-        venue,
-      });
+    const base = { signature: tx.signature, trader: key, venue, lamports: solDelta < 0n ? -solDelta : solDelta };
+    const moved = [...deltas]
+      .filter(([, d]) => d.delta !== 0n)
+      .map(([mint, { delta, decimals }]) => ({ mint, decimals, amount: delta < 0n ? -delta : delta, up: delta > 0n }));
+    const ups = moved.filter((m) => m.up);
+    const downs = moved.filter((m) => !m.up);
+    const entry = (side, m, extra = {}) =>
+      trades.push({ ...base, side, mint: m.mint, tokenAmount: m.amount, decimals: m.decimals, ...extra });
+
+    if (ups.length && downs.length) {
+      // Cambió un token por otro sin pasar por SOL: es una venta del que
+      // entrega (realiza ganancia o pérdida) y una compra del que recibe.
+      for (const m of downs) {
+        entry("SWAP", m, { toMint: ups[0].mint, toAmount: ups[0].amount, toDecimals: ups[0].decimals });
+      }
+    } else if (ups.length) {
+      // Recibe tokens: si pagó SOL es una compra; si no, se los enviaron.
+      for (const m of ups) entry(solDelta < -DUST_LAMPORTS ? "BUY" : "TRANSFER_IN", m);
+    } else if (downs.length) {
+      // Entrega tokens: si recibió SOL es una venta; si no, los envió a otra
+      // wallet (puede ser para vender desde ahí).
+      for (const m of downs) entry(solDelta > DUST_LAMPORTS ? "SELL" : "TRANSFER_OUT", m);
     }
   });
 
