@@ -1,0 +1,77 @@
+/**
+ * Recibe en tiempo real las transacciones de pump.fun donde participan las
+ * wallets seguidas, usando Yellowstone gRPC (Geyser) de QuickNode.
+ */
+const Client = require("@triton-one/yellowstone-grpc").default;
+const { CommitmentLevel } = require("@triton-one/yellowstone-grpc");
+const { PUMP_FUN_PROGRAM_ID } = require("./config");
+
+const PING_INTERVAL_MS = 15_000;
+const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
+
+function subscribeRequest(watchList) {
+  return {
+    accounts: {},
+    slots: {},
+    transactions: {
+      pumpFun: {
+        vote: false,
+        failed: false,
+        accountInclude: watchList, // cualquiera de las wallets seguidas…
+        accountExclude: [],
+        accountRequired: [PUMP_FUN_PROGRAM_ID], // …operando en pump.fun
+      },
+    },
+    transactionsStatus: {},
+    blocks: {},
+    blocksMeta: {},
+    entry: {},
+    accountsDataSlice: [],
+    commitment: CommitmentLevel.CONFIRMED,
+  };
+}
+
+/** Se conecta y llama a onTransaction(tx) por cada transacción. Reconecta sola si se cae. */
+async function streamTransactions(config, onTransaction) {
+  let attempt = 0;
+  for (;;) {
+    let pinger;
+    try {
+      const client = new Client(config.yellowstoneEndpoint, config.yellowstoneToken, undefined);
+      await client.connect();
+      const stream = await client.subscribe();
+      await new Promise((resolve, reject) =>
+        stream.write(subscribeRequest(config.watchList), (err) => (err ? reject(err) : resolve()))
+      );
+      console.log("📡 Conectado a Yellowstone. Esperando operaciones de las wallets seguidas…\n");
+      attempt = 0;
+
+      // Algunos proveedores cierran la conexión si no hay tráfico.
+      let pingId = 0;
+      pinger = setInterval(() => {
+        stream.write({ ...subscribeRequest(config.watchList), ping: { id: ++pingId } }, () => {});
+      }, PING_INTERVAL_MS);
+
+      await new Promise((resolve, reject) => {
+        stream.on("data", (update) => {
+          const tx = update.transaction?.transaction;
+          if (tx) onTransaction(tx);
+        });
+        stream.on("error", reject);
+        stream.on("end", resolve);
+        stream.on("close", resolve);
+      });
+      console.log("⚠️  La conexión se cerró.");
+    } catch (err) {
+      console.error(`⚠️  Error de conexión: ${err.message}`);
+    } finally {
+      clearInterval(pinger);
+    }
+    attempt += 1;
+    const wait = Math.min(30_000, 1_000 * 2 ** attempt);
+    console.log(`   Reintentando en ${wait / 1000}s…`);
+    await sleep(wait);
+  }
+}
+
+module.exports = { streamTransactions, subscribeRequest };

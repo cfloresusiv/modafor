@@ -1,0 +1,21 @@
+{
+  "name": "pumpfun-copy-trader-lab",
+  "version": "1.0.0",
+  "description": "Laboratorio educativo de copy trading en pump.fun (Solana) basado en la guía de QuickNode",
+  "main": "src/index.js",
+  "scripts": {
+    "start": "node --no-deprecation src/index.js",
+    "test": "node --test test/*.test.js",
+    "check": "node --no-deprecation src/check.js"
+  },
+  "engines": {
+    "node": ">=20"
+  },
+  "license": "MIT",
+  "dependencies": {
+    "@solana/web3.js": "^1.98.0",
+    "@triton-one/yellowstone-grpc": "^7.0.1",
+    "bs58": "^6.0.0",
+    "dotenv": "^16.4.7"
+  }
+}
