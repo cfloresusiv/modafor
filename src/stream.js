@@ -2,15 +2,31 @@
  * FUENTE=grpc — recibe en tiempo real las transacciones de pump.fun donde participan las
  * wallets seguidas, usando Yellowstone gRPC (Geyser) de QuickNode.
  */
-const Client = require("@triton-one/yellowstone-grpc").default;
-const { CommitmentLevel } = require("@triton-one/yellowstone-grpc");
 const { PUMP_FUN_PROGRAM_ID } = require("./config");
 const { fromYellowstone } = require("./parser");
 
 const PING_INTERVAL_MS = 15_000;
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
 
+/**
+ * La librería de gRPC trae un binario nativo por sistema operativo que a veces
+ * npm no instala (p. ej. en Windows). Se carga solo si FUENTE=grpc, así el
+ * modo gratuito funciona aunque falte.
+ */
+function loadYellowstone() {
+  try {
+    return require("@triton-one/yellowstone-grpc");
+  } catch (e) {
+    throw new Error(
+      "No se pudo cargar la librería de gRPC en este sistema. Usa FUENTE=websocket, " +
+        "o borra node_modules y package-lock.json y ejecuta npm install de nuevo. " +
+        `(${e.message.split("\n")[0]})`
+    );
+  }
+}
+
 function subscribeRequest(watchList) {
+  const { CommitmentLevel } = loadYellowstone();
   return {
     accounts: {},
     slots: {},
@@ -34,6 +50,7 @@ function subscribeRequest(watchList) {
 
 /** Se conecta y llama a onTransaction(tx) por cada transacción. Reconecta sola si se cae. */
 async function streamTransactions(config, onTransaction) {
+  const Client = loadYellowstone().default;
   let attempt = 0;
   for (;;) {
     let pinger;
@@ -75,4 +92,4 @@ async function streamTransactions(config, onTransaction) {
   }
 }
 
-module.exports = { streamTransactions, subscribeRequest };
+module.exports = { streamTransactions, subscribeRequest, loadYellowstone };

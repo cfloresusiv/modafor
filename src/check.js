@@ -8,9 +8,9 @@
  *   4. (modo real + mint) Pide a Metis una compra real de ese token y la
  *      SIMULA en la red. No se envía ninguna transacción.
  */
-const Client = require("@triton-one/yellowstone-grpc").default;
 const { loadConfig } = require("./config");
 const { connect, assertRpc } = require("./websocket");
+const { loadYellowstone } = require("./stream");
 const { LiveTrader } = require("./liveTrader");
 const { Store } = require("./store");
 const { solStr } = require("./format");
@@ -22,6 +22,7 @@ async function main() {
   ok(`.env válido · modo "${config.mode}" · ${config.watchList.length} wallet(s) seguida(s)`);
 
   if (config.source === "grpc") {
+    const Client = loadYellowstone().default;
     const client = new Client(config.yellowstoneEndpoint, config.yellowstoneToken, undefined);
     await client.connect();
     const slot = await client.getSlot();
