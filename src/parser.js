@@ -37,7 +37,7 @@ function fromYellowstone(tx) {
   };
 }
 
-/** Respuesta de connection.getTransaction(sig, { maxSupportedTransactionVersion: 0 }). */
+/** Respuesta de connection.getTransaction(sig, { maxSupportedTransactionVersion: 1 }), mensaje v0 o v1. */
 function fromRpc(signature, tx) {
   const meta = tx?.meta;
   if (!tx?.transaction?.message || !meta) return null;

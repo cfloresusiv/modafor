@@ -21,7 +21,7 @@ async function fetchTransaction(connection, signature) {
   for (let attempt = 0; attempt < 5; attempt++) {
     const tx = await connection.getTransaction(signature, {
       commitment: "confirmed",
-      maxSupportedTransactionVersion: 0,
+      maxSupportedTransactionVersion: 1, // v1 = formato nuevo (SIMD-0385)
     });
     if (tx) return tx;
     await sleep(500 * (attempt + 1));

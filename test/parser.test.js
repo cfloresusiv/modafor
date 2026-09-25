@@ -146,3 +146,29 @@ test("wsUrl convierte la URL http del RPC en ws", () => {
   assert.equal(wsUrl("https://x.quiknode.pro/abc/"), "wss://x.quiknode.pro/abc/");
   assert.equal(wsUrl("http://localhost:8899"), "ws://localhost:8899");
 });
+
+test("formato RPC con transacción v1 (formato nuevo de Solana)", () => {
+  const { MessageV1 } = require("@solana/web3.js");
+  const message = new MessageV1({
+    header: { numRequiredSignatures: 1, numReadonlySignedAccounts: 0, numReadonlyUnsignedAccounts: 0 },
+    staticAccountKeys: [new PublicKey(whale), new PublicKey(other)],
+    recentBlockhash: Keypair.generate().publicKey.toBase58(),
+    compiledInstructions: [],
+  });
+  const rpcTx = {
+    transaction: { message },
+    meta: {
+      err: null,
+      preBalances: [3_000_000_000, 0],
+      postBalances: [2_000_000_000, 0],
+      preTokenBalances: [],
+      postTokenBalances: [bal(1, whale, mint, 777)],
+      loadedAddresses: { writable: [], readonly: [] },
+    },
+  };
+  const [t] = parseNormalized(fromRpc("firmaV1", rpcTx), watched);
+  assert.equal(t.side, "BUY");
+  assert.equal(t.trader, whale);
+  assert.equal(t.lamports, 1_000_000_000n);
+  assert.equal(t.tokenAmount, 777n);
+});
