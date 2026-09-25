@@ -78,9 +78,13 @@ function verdict(a) {
 async function main() {
   const config = loadConfig();
   if (!config.solanaRpc) throw new Error("Falta SOLANA_RPC en tu .env");
-  const wallets = (process.argv.length > 2 ? process.argv.slice(2) : config.watchList).map((w) =>
-    new PublicKey(w).toBase58()
-  );
+  const wallets = (process.argv.length > 2 ? process.argv.slice(2) : config.watchList).map((w) => {
+    try {
+      return new PublicKey(w).toBase58();
+    } catch {
+      throw new Error(`Dirección de wallet inválida: ${w}`);
+    }
+  });
   const limit = Math.min(Number(process.env.EVAL_TX) || 150, 1000);
 
   const connection = connect(config);

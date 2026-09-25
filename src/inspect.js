@@ -15,7 +15,12 @@ const { solStr, tokenStr, short } = require("./format");
 async function main() {
   const [address, countArg] = process.argv.slice(2);
   if (!address) throw new Error("Uso: npm run revisar -- <wallet> [cantidad]");
-  const wallet = new PublicKey(address).toBase58();
+  let wallet;
+  try {
+    wallet = new PublicKey(address).toBase58();
+  } catch {
+    throw new Error(`Dirección de wallet inválida: ${address}`);
+  }
   const limit = Math.min(Number(countArg) || 20, 100);
 
   const config = loadConfig();
