@@ -20,7 +20,7 @@ const config = {
 
 const newStore = () => new Store(fs.mkdtempSync(path.join(os.tmpdir(), "lab-")), "simular", {});
 const trade = (side, mint, lamports, tokenAmount) => ({
-  signature: "sig", trader: "whale", side, mint, lamports, tokenAmount, decimals: 6,
+  signature: "sig", trader: "whale", side, mint, lamports, tokenAmount, decimals: 6, venue: "pump.fun",
 });
 console.log = () => {}; // silencia la salida del bot durante los tests
 
@@ -61,4 +61,9 @@ test("simulación: el estado sobrevive a un reinicio", async () => {
   const reloaded = new Store(dir, "simular", {});
   assert.ok(reloaded.positions.A);
   assert.equal(fs.readFileSync(path.join(dir, "operaciones-simular.jsonl"), "utf-8").trim().split("\n").length, 1);
+});
+
+test("guard: no copia tokens graduados (PumpSwap u otro DEX)", () => {
+  const t = { ...trade("BUY", "A", SOL, 1n), venue: "PumpSwap" };
+  assert.match(buyBlockedReason(t, config, newStore()), /graduado/);
 });

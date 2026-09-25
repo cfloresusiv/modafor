@@ -89,7 +89,17 @@ cp .env.example .env
 
 Busca wallets activas en pump.fun en exploradores como
 [gmgn.ai](https://gmgn.ai) o [solscan.io](https://solscan.io) y ponlas en
-`WATCH_LIST` separadas por comas. Buen tema para la clase: una wallet con
+`WATCH_LIST` separadas por comas.
+
+Antes de seguir una wallet, revisa qué hace:
+
+```bash
+npm run revisar -- <WALLET> 30
+```
+
+Muestra sus últimas 30 transacciones y cuántas fueron en la curva de
+pump.fun (las únicas que el bot puede copiar) y cuántas en tokens ya
+graduados (PumpSwap u otros exchanges). Buen tema para la clase: una wallet con
 muchas ganancias en el pasado no garantiza nada en el futuro.
 
 ## Plan de prueba recomendado
@@ -167,6 +177,7 @@ Eso también es parte de la lección.
 | `src/paperTrader.js` | Modo `simular` |
 | `src/liveTrader.js` | Modo `real` (Metis + simulación previa) |
 | `src/check.js` | Verificación sin gastar |
+| `src/inspect.js` | `npm run revisar`: analiza las últimas operaciones de una wallet |
 | `data/` | Estado e historial (se crea solo, no se sube a git) |
 
 ## Tests

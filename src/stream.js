@@ -1,8 +1,7 @@
 /**
- * FUENTE=grpc — recibe en tiempo real las transacciones de pump.fun donde participan las
+ * FUENTE=grpc — recibe en tiempo real las transacciones donde participan las
  * wallets seguidas, usando Yellowstone gRPC (Geyser) de QuickNode.
  */
-const { PUMP_FUN_PROGRAM_ID } = require("./config");
 const { fromYellowstone } = require("./parser");
 
 const PING_INTERVAL_MS = 15_000;
@@ -34,9 +33,9 @@ function subscribeRequest(watchList) {
       pumpFun: {
         vote: false,
         failed: false,
-        accountInclude: watchList, // cualquiera de las wallets seguidas…
+        accountInclude: watchList, // cualquier transacción de las wallets seguidas
         accountExclude: [],
-        accountRequired: [PUMP_FUN_PROGRAM_ID], // …operando en pump.fun
+        accountRequired: [],
       },
     },
     transactionsStatus: {},

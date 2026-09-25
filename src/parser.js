@@ -8,7 +8,7 @@
  *   - baja el saldo de un token y sube el SOL  -> VENTA
  */
 const bs58 = require("bs58").default;
-const { WSOL_MINT } = require("./config");
+const { WSOL_MINT, PUMP_FUN_PROGRAM_ID, PUMP_SWAP_PROGRAM_ID } = require("./config");
 
 const toBase58 = (bytes) => bs58.encode(Buffer.from(bytes));
 
@@ -53,6 +53,13 @@ function fromRpc(signature, tx) {
   };
 }
 
+/** Dónde ocurrió la operación, según los programas que aparecen en la transacción. */
+function venueOf(tx) {
+  if (tx.accountKeys.includes(PUMP_FUN_PROGRAM_ID)) return "pump.fun";
+  if (tx.accountKeys.includes(PUMP_SWAP_PROGRAM_ID)) return "PumpSwap";
+  return "otro DEX";
+}
+
 function tokenDeltasByMint(tx, owner) {
   const deltas = new Map();
   const add = (balances, sign) => {
@@ -72,12 +79,14 @@ function tokenDeltasByMint(tx, owner) {
 /**
  * @param {object} tx  transacción en el formato común (fromYellowstone / fromRpc)
  * @param {Set<string>} watched  wallets seguidas
- * @returns {Array<{signature, trader, side, mint, tokenAmount, decimals, lamports}>}
+ * @returns {Array<{signature, trader, side, mint, tokenAmount, decimals, lamports, venue}>}
+ *   venue: "pump.fun" (curva, token nuevo), "PumpSwap" (token graduado) u "otro DEX".
  *   tokenAmount y lamports son BigInt positivos (cantidad movida).
  */
 function parseTrades(tx, watched) {
   if (!tx || tx.err) return [];
   const trades = [];
+  const venue = venueOf(tx);
 
   tx.accountKeys.forEach((key, index) => {
     if (!watched.has(key)) return;
@@ -104,6 +113,7 @@ function parseTrades(tx, watched) {
         tokenAmount: delta < 0n ? -delta : delta,
         decimals,
         lamports: solDelta < 0n ? -solDelta : solDelta,
+        venue,
       });
     }
   });

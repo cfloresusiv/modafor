@@ -3,11 +3,10 @@
  *
  * Usa la suscripción de logs del RPC normal de Solana (incluida en cualquier
  * endpoint de QuickNode): por cada wallet seguida recibe un aviso cuando
- * aparece en una transacción, y si esa transacción pasó por pump.fun la
- * descarga completa con getTransaction. Es ~1–2 s más lenta que gRPC.
+ * aparece en una transacción y la descarga completa con getTransaction.
+ * Es ~1–2 s más lenta que gRPC.
  */
 const { Connection, PublicKey } = require("@solana/web3.js");
-const { PUMP_FUN_PROGRAM_ID } = require("./config");
 const { fromRpc } = require("./parser");
 
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
@@ -51,7 +50,6 @@ async function streamViaWebsocket(config, onTransaction) {
 
   const handleLogs = async ({ signature, err, logs }) => {
     if (err) return;
-    if (!logs.some((line) => line.includes(PUMP_FUN_PROGRAM_ID))) return;
     try {
       const tx = await fetchTransaction(connection, signature);
       if (!tx) return console.log(`⚠️  No se pudo descargar ${signature}`);

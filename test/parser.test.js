@@ -4,7 +4,7 @@ const bs58 = require("bs58").default;
 const { Keypair, PublicKey, TransactionMessage, AddressLookupTableAccount, SystemProgram } = require("@solana/web3.js");
 const { parseTrades: parseNormalized, fromYellowstone, fromRpc } = require("../src/parser");
 const { wsUrl } = require("../src/websocket");
-const { WSOL_MINT } = require("../src/config");
+const { WSOL_MINT, PUMP_FUN_PROGRAM_ID, PUMP_SWAP_PROGRAM_ID } = require("../src/config");
 
 const whale = Keypair.generate().publicKey.toBase58();
 const other = Keypair.generate().publicKey.toBase58();
@@ -171,4 +171,12 @@ test("formato RPC con transacción v1 (formato nuevo de Solana)", () => {
   assert.equal(t.trader, whale);
   assert.equal(t.lamports, 1_000_000_000n);
   assert.equal(t.tokenAmount, 777n);
+});
+
+test("indica dónde ocurrió la operación", () => {
+  const base = { pre: [2_000, 0, 0], post: [1_000, 0, 0], postTokens: [bal(1, whale, mint, 10)] };
+  const at = (program) => parseTrades(makeTx({ keys: [whale, other, program], ...base }), watched)[0].venue;
+  assert.equal(at(PUMP_FUN_PROGRAM_ID), "pump.fun");
+  assert.equal(at(PUMP_SWAP_PROGRAM_ID), "PumpSwap");
+  assert.equal(at(Keypair.generate().publicKey.toBase58()), "otro DEX");
 });

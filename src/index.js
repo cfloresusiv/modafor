@@ -51,15 +51,24 @@ async function main() {
   const handleTrade = async (trade) => {
     const icon = trade.side === "BUY" ? "🟢 COMPRA" : "🔴 VENTA";
     console.log(`${icon}  ${short(trade.trader)} ${trade.side === "BUY" ? "compró" : "vendió"} ${tokenStr(trade.tokenAmount, trade.decimals)} de ${trade.mint}`);
-    console.log(`   por ${solStr(trade.lamports)} · https://solscan.io/tx/${trade.signature}`);
+    console.log(`   por ${solStr(trade.lamports)} en ${trade.venue} · https://solscan.io/tx/${trade.signature}`);
     if (!trader) return;
     if (trade.side === "BUY") await trader.onBuy(trade, buyBlockedReason(trade, config, store));
     else await trader.onSell(trade);
   };
 
+  const watched = new Set(config.watchList);
+
   const onTransaction = (tx) => {
-    const watched = new Set(config.watchList);
-    for (const trade of parseTrades(tx, watched)) {
+    const trades = parseTrades(tx, watched);
+    if (tx && trades.length === 0 && !seen.has(tx.signature)) {
+      seen.add(tx.signature);
+      const who = tx.accountKeys.filter((k) => watched.has(k)).map(short).join(", ");
+      const what = tx.err ? "transacción fallida" : "movimiento que no es compra/venta (transferencia, comisión, etc.)";
+      console.log(`·  ${who}: ${what} · https://solscan.io/tx/${tx.signature}`);
+      return;
+    }
+    for (const trade of trades) {
       const key = `${trade.signature}:${trade.trader}:${trade.mint}`;
       if (seen.has(key)) continue; // la reconexión puede repetir transacciones
       seen.add(key);

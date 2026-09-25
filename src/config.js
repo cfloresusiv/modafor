@@ -4,7 +4,9 @@ const { PublicKey, LAMPORTS_PER_SOL } = require("@solana/web3.js");
 const MODES = ["observar", "simular", "real"];
 const SOURCES = ["websocket", "grpc"];
 
+// Curva de pump.fun (tokens nuevos) y PumpSwap (donde se operan al "graduarse")
 const PUMP_FUN_PROGRAM_ID = "6EF8rrecthR5Dkzon8Nwu78hRvfCKubJ14M5uBEwF6P";
+const PUMP_SWAP_PROGRAM_ID = "pAMMBay6oceH9fJKBRHGP5D4bD4sWpmSwMn52FMfXEA";
 const WSOL_MINT = "So11111111111111111111111111111111111111112";
 
 function required(name) {
@@ -85,4 +87,4 @@ function loadConfig() {
   return config;
 }
 
-module.exports = { loadConfig, PUMP_FUN_PROGRAM_ID, WSOL_MINT };
+module.exports = { loadConfig, PUMP_FUN_PROGRAM_ID, PUMP_SWAP_PROGRAM_ID, WSOL_MINT };

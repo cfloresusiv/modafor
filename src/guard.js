@@ -5,6 +5,9 @@
 const { solStr } = require("./format");
 
 function buyBlockedReason(trade, config, store) {
+  if (trade.venue !== "pump.fun") {
+    return `se operó en ${trade.venue} (token ya graduado); el bot solo copia compras en la curva de pump.fun`;
+  }
   if (trade.lamports < config.minWhaleLamports) {
     return `operación pequeña (${solStr(trade.lamports)} < MIN_WHALE_SOL)`;
   }

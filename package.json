@@ -6,7 +6,8 @@
   "scripts": {
     "start": "node --no-deprecation src/index.js",
     "test": "node --test test/*.test.js",
-    "check": "node --no-deprecation src/check.js"
+    "check": "node --no-deprecation src/check.js",
+    "revisar": "node --no-deprecation src/inspect.js"
   },
   "engines": {
     "node": ">=20"
